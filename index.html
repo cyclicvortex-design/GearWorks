@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gearworks</title>
+<meta name="description" content="Gearworks — a tiny block-machine builder. Stick, power, shove, and drag your way to moving contraptions.">
+<meta property="og:title" content="Gearworks">
+<meta property="og:description" content="A tiny block-machine builder — stick, power, shove, and drag your way to moving contraptions.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="og-image.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%236366f1'/%3E%3Cpath d='M17 6 L11 18 L16 18 L14 26 L21 13 L16 13 Z' fill='%23fde047'/%3E%3C/svg%3E">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #12121c;
+    color: #eee; font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding-bottom: 20px;
+  }
+  h1 { margin: 10px 0 8px; font-size: 18px; letter-spacing: 5px; color: #a5b4fc; text-shadow: 0 0 18px rgba(129,140,248,0.6); }
+  .panel {
+    background: rgba(30, 30, 48, 0.8); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(6px);
+  }
+  #toolbar { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; max-width: 95vw; padding: 5px 8px; }
+  button {
+    background: #262640; color: #ddd; border: 1px solid rgba(255,255,255,0.10);
+    padding: 5px 9px; border-radius: 7px; cursor: pointer; font-size: 12px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button:hover { background: #34345c; }
+  button:active { transform: scale(0.94); }
+  button.active { background: #4f46e5; border-color: #818cf8; box-shadow: 0 0 10px rgba(99,102,241,0.5); }
+  #controls { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; justify-content: center; padding: 5px 8px; }
+  #scroll { overflow: auto; max-width: 95vw; max-height: 62vh; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+  canvas { background: #191926; display: block; cursor: crosshair; }
+  #hint { color: #6b7280; font-size: 11px; margin-top: 8px; max-width: 900px; text-align: center; line-height: 1.5; opacity: 0.8; }
+  #hint b { color: #9ca3af; }
+  input[type=range] { width: 110px; accent-color: #818cf8; }
+  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; }
+  .icon { display: block; width: 22px; height: 22px; border-radius: 5px; }
+  .swatch.active[data-tool="color:yellow"] { outline: 2px solid #fbbf24; }
+  .swatch.active[data-tool="color:red"] { outline: 2px solid #f87171; }
+  .swatch.active[data-tool="color:blue"] { outline: 2px solid #60a5fa; }
+  #toolName { color:#c7d2fe; font-size:12px; align-self:center; min-width:64px; text-align:center; background:rgba(255,255,255,0.06); padding:4px 10px; border-radius:20px; border:1px solid rgba(255,255,255,0.08); }
+</style>
+</head>
+<body>
+<canvas id="bg" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<header style="text-align:center; padding:40px 16px 10px; max-width:820px; width:100%;">
+  <h1 style="font-size:32px;"><svg width="26" height="26" viewBox="0 0 32 32" style="vertical-align:-4px; margin-right:8px;"><rect x='2' y='2' width='28' height='28' rx='7' fill='#6366f1'/><path d='M17 6 L11 18 L16 18 L14 26 L21 13 L16 13 Z' fill='#fde047'/></svg>GEARWORKS</h1>
+  <p style="color:#9aa0b4; margin-top:6px;">A tiny block-machine builder — stick, power, shove, and drag your way to moving contraptions.</p>
+</header>
+<div id="toolbar" class="panel">
+  <button data-tool="mover" class="active" title="Mover"><canvas class="icon" data-t="mover"></canvas></button>
+  <button data-tool="conveyor" title="Conveyor"><canvas class="icon" data-t="conveyor"></canvas></button>
+  <button data-tool="pusher" title="Pusher"><canvas class="icon" data-t="pusher"></canvas></button>
+  <button data-tool="sticky" title="Sticky"><canvas class="icon" data-t="sticky"></canvas></button>
+  <button data-tool="dynamo" title="Dynamo"><canvas class="icon" data-t="dynamo"></canvas></button>
+  <button data-tool="wall" title="Wall"><canvas class="icon" data-t="wall"></canvas></button>
+  <button data-tool="wire" title="Wire"><canvas class="icon" data-t="wire"></canvas></button>
+  <button data-tool="battery" title="Battery"><canvas class="icon" data-t="battery"></canvas></button>
+  <button data-tool="erase" title="Erase"><canvas class="icon" data-t="erase"></canvas></button>
+  <span style="align-self:center;color:#8b8ba3;font-size:12px;margin-left:6px">Color:</span>
+  <button data-tool="color:yellow" class="swatch active" title="Yellow"><span class="dot" style="background:#fbbf24"></span></button>
+  <button data-tool="color:red" class="swatch" title="Red"><span class="dot" style="background:#f87171"></span></button>
+  <button data-tool="color:blue" class="swatch" title="Blue"><span class="dot" style="background:#60a5fa"></span></button>
+  <span id="toolName">Mover</span>
+</div>
+<div id="controls" class="panel">
+  <button id="play" style="background:#4f46e5; border-color:#818cf8; padding:8px 22px; font-size:15px; font-weight:600;">▶ Play</button>
+  <button id="step">Step</button>
+  <button id="reset">Reset</button>
+  <label>Speed <input type="range" id="speed" min="100" max="900" step="50" value="500"></label>
+  <button id="zoomOut">−</button>
+  <button id="zoomIn">+</button>
+  <button id="copyLink">Copy Link</button>
+</div>
+<div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
+  <span id="levelName" style="color:#c7d2fe; font-size:14px; font-weight:600; letter-spacing:1px;">Sandbox</span>
+  <span style="color:#556; font-size:12px;">Select a level below to play, or stay in Sandbox</span>
+</div>
+<div id="levelHint" style="color:#a78bfa; font-size:12px; margin-bottom:6px; min-height:14px;"></div>
+<button id="help" style="position:fixed; top:10px; right:12px; z-index:40;">?</button>
+<div id="helpModal" style="display:none; position:fixed; inset:0; background:rgba(5,5,15,0.75); backdrop-filter:blur(5px); z-index:50; align-items:center; justify-content:center;">
+  <div class="panel" style="max-width:560px; padding:24px; line-height:1.7;">
+    <h2 style="margin-bottom:10px; color:#a5b4fc; letter-spacing:2px;">HOW TO PLAY</h2>
+    <p><b>Goal:</b> build machines that move on their own.</p>
+    <p><b>Blocks:</b></p>
+    <ul style="margin-left:18px;">
+      <li><b>Dynamo</b> — colored power source. Machines touching it and matching its color run. Also recharges adjacent batteries.</li>
+      <li><b>Battery</b> — temporary power; drains 1 charge/tick (shows %). Charge it at a dynamo, then take it with you.</li>
+      <li><b>Mover</b> — drags itself + sticky-glued friends one cell per tick.</li>
+      <li><b>Conveyor</b> — nudges the block in front. <b>Pusher</b> — shoves the whole line ahead.</li>
+      <li><b>Sticky</b> — glues neighbors into one moving group. <b>Wire</b> — carries color power from afar. <b>Wall</b> — blocks.</li>
+    </ul>
+    <p style="margin-top:10px;"><b>Controls:</b> click to place, click a placed mover/conveyor/pusher to rotate, right-click erase, Space play/pause, Ctrl+scroll zoom, Copy/Paste moves your whole machine.</p>
+    <p><b>Colors:</b> pick Yellow/Red/Blue to paint new + clicked blocks. A red mover only runs on red power.</p>
+    <button id="closeHelp" style="margin-top:14px;">Got it</button>
+  </div>
+</div>
+<div id="winModal" style="display:none; position:fixed; inset:0; background:rgba(5,5,15,0.75); backdrop-filter:blur(5px); z-index:60; align-items:center; justify-content:center;">
+  <div class="panel" style="padding:28px 40px; text-align:center;">
+    <h2 style="color:#4ade80; letter-spacing:3px; margin-bottom:10px;">LEVEL COMPLETE</h2>
+    <p id="winText" style="color:#aab; margin-bottom:16px;"></p>
+    <button id="nextLvl" style="background:#4f46e5; border-color:#818cf8; padding:10px 20px; margin-right:8px;">Next</button>
+    <button id="stayLvl">Keep playing</button>
+  </div>
+</div>
+<div id="scroll" style="position:relative;">
+<canvas id="cv"></canvas>
+</div>
+<div id="hint">
+  Click to place • click a placed Mover/Conveyor/Pusher to rotate • right-click erases • Space plays<br>
+  Dynamo powers same-color machines and recharges batteries • Wire carries color • Battery drains • Sticky glues groups • Copy/Paste + color swatches in the bar
+</div>
+
+<section class="panel" style="margin-top:24px; max-width:720px; padding:20px; line-height:1.7; font-size:14px; color:#aab;">
+  <h2 style="color:#c7d2fe; margin-bottom:8px; letter-spacing:2px; font-size:15px;">HOW IT WORKS</h2>
+  <p>Place blocks on the grid and press <b style="color:#c7d2fe">Space</b> to run. <b style="color:#c7d2fe">Dynamo</b> is the power source — any Mover, Conveyor, or Pusher touching a Dynamo of the same color activates. <b style="color:#c7d2fe">Sticky</b> glues neighbors into one moving group. <b style="color:#c7d2fe">Batteries</b> hold portable charge — recharge them next to a Dynamo, then glue them into a moving machine. <b style="color:#c7d2fe">Wall</b> blocks movement, <b style="color:#c7d2fe">Wire</b> transmits power color across the map.</p>
+  <p style="margin-top:8px; color:#889;">Click a placed Mover/Conveyor/Pusher to rotate it • Right-click to erase • Ctrl+scroll to zoom • Copy/Paste duplicates your whole machine.</p>
+</section>
+
+<section class="panel" style="margin-top:24px; max-width:720px; padding:20px;">
+  <h2 style="color:#c7d2fe; margin-bottom:4px; letter-spacing:3px; font-size:15px;">LEVELS</h2>
+  <p style="color:#889; font-size:12px; margin-bottom:12px;">Beat the goal by giving a machine power that matches its color. Sandbox is free play.</p>
+  <div id="levelCards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px;"></div>
+</section>
+<footer style="margin-top:30px; padding-bottom:30px; color:#556; font-size:12px;">Gearworks — built with vanilla JS &amp; canvas.</footer>
+
+<script>
+const COLS = 50, ROWS = 30, CELL = 32;
+const cv = document.getElementById('cv');
+cv.width = COLS * CELL; cv.height = ROWS * CELL;
+const ctx = cv.getContext('2d');
+
+// roundRect fallback for older browsers
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath();
+    return this;
+  };
+}
+
+const DIRS = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
+const DIR_NAMES = ['up', 'right', 'down', 'left'];
+const COLORS = { yellow: '#fbbf24', red: '#f87171', blue: '#60a5fa' };
+const COLOR_NAMES = Object.keys(COLORS);
+const BLOCK_COLOR = { mover: '#818cf8', conveyor: '#c084fc', pusher: '#f472b6', sticky: '#34d399', dynamo: '#fbbf24', wall: '#6b7280', wire: '#9ca3af', battery: '#fb923c' };
+const MAX_CHARGE = 30;
+
+// animated background dots
+const bg = document.getElementById('bg');
+const bctx = bg.getContext('2d');
+let bgDots = [];
+function bgInit() {
+  bg.width = innerWidth; bg.height = innerHeight;
+  bgDots = Array.from({ length: 40 }, () => ({ x: Math.random()*bg.width, y: Math.random()*bg.height, r: 40+Math.random()*120, s: 0.1+Math.random()*0.25, hue: 230+Math.random()*60 }));
+}
+bgInit(); window.addEventListener('resize', bgInit);
+function drawBg() {
+  bctx.fillStyle = '#12121c'; bctx.fillRect(0,0,bg.width,bg.height);
+  for (const d of bgDots) {
+    d.y -= d.s; d.x += Math.sin(d.y*0.002)*0.2;
+    if (d.y < -d.r) { d.y = bg.height + d.r; d.x = Math.random()*bg.width; }
+    const g = bctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
+    g.addColorStop(0, `hsla(${d.hue}, 60%, 40%, 0.10)`);
+    g.addColorStop(1, 'hsla(0,0%,0%,0)');
+    bctx.fillStyle = g; bctx.beginPath(); bctx.arc(d.x, d.y, d.r, 0, 7); bctx.fill();
+  }
+}
+
+let grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+let tool = 'mover';
+let currentColor = 'yellow';
+let paintMode = false;
+let playing = false, timer = null;
+let currentLevel = -1;
+let won = false;
+let clipboard = null, ghost = null, hover = [0, 0], particles = [];
+
+function inB(x, y) { return x >= 0 && y >= 0 && x < COLS && y < ROWS; }
+function isWall(b) { return b && b.type === 'wall'; }
+function isObstacle(b) { return b && (b.type === 'wall' || b.type === 'wire' || b.type === 'goal'); }
+
+// groups: orthogonal chains where at least one end is sticky; walls excluded (static obstacles)
+function computeGroups() {
+  const gid = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
+  let id = 0;
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    if (!grid[y][x] || isObstacle(grid[y][x]) || gid[y][x] !== -1) continue;
+    const q = [[x, y]]; gid[y][x] = id;
+    while (q.length) {
+      const [cx, cy] = q.pop();
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (!inB(nx, ny) || !grid[ny][nx] || isObstacle(grid[ny][nx]) || gid[ny][nx] !== -1) continue;
+        if (grid[cy][cx].type === 'sticky' || grid[ny][nx].type === 'sticky') { gid[ny][nx] = id; q.push([nx, ny]); }
+      }
+    }
+    id++;
+  }
+  return gid;
+}
+function groupCells(gid, id) {
+  const cells = [];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (gid[y][x] === id) cells.push([x, y]);
+  return cells;
+}
+// colors carried by each wire cell (BFS through wire networks)
+let wireColorMap = {};
+function computeWireColors() {
+  wireColorMap = {};
+  const seen = new Set();
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    if (!grid[y][x] || grid[y][x].type !== 'wire' || seen.has(x + ',' + y)) continue;
+    const net = [[x, y]]; seen.add(x + ',' + y);
+    const colors = new Set();
+    for (let i = 0; i < net.length; i++) {
+      const [cx2, cy2] = net[i];
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = cx2 + dx, ny = cy2 + dy;
+        if (!inB(nx, ny) || !grid[ny][nx]) continue;
+        const t = grid[ny][nx].type;
+        if (t === 'wire' && !seen.has(nx + ',' + ny)) { seen.add(nx + ',' + ny); net.push([nx, ny]); }
+        else if (t === 'dynamo') colors.add(grid[ny][nx].color);
+        else if (t === 'battery' && grid[ny][nx].charge > 0) colors.add(grid[ny][nx].color);
+      }
+    }
+    net.forEach(([cx2, cy2]) => wireColorMap[cx2 + ',' + cy2] = colors);
+  }
+}
+
+// colors of power touching or inside the group
+function groupPowerColors(cells) {
+  const set = new Set();
+  for (const [x, y] of cells) {
+    if (grid[y][x].type === 'dynamo') set.add(grid[y][x].color);
+    if (grid[y][x].type === 'battery' && grid[y][x].charge > 0) set.add(grid[y][x].color);
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (!inB(nx, ny) || !grid[ny][nx]) continue;
+      const t = grid[ny][nx].type;
+      if (t === 'dynamo') set.add(grid[ny][nx].color);
+      else if (t === 'battery' && grid[ny][nx].charge > 0) set.add(grid[ny][nx].color);
+      else if (t === 'wire' && wireColorMap[nx + ',' + ny]) wireColorMap[nx + ',' + ny].forEach(c => set.add(c));
+    }
+  }
+  return set;
+}
+function tryMove(cells, dx, dy) {
+  const moveSet = new Set(cells.map(([x, y]) => x + ',' + y));
+  for (const [x, y] of cells) {
+    const nx = x + dx, ny = y + dy;
+    if (!inB(nx, ny)) return false;
+    const t = grid[ny][nx];
+    if (t && (!moveSet.has(nx + ',' + ny) || isObstacle(t))) return false;
+  }
+  const moving = cells.map(([x, y]) => grid[y][x]);
+  for (const [x, y] of cells) grid[y][x] = null;
+  cells.forEach(([x, y], i) => grid[y + dy][x + dx] = moving[i]);
+  return true;
+}
+
+function tick() {
+  computeWireColors();
+  let gid = computeGroups();
+  // batteries drain, or recharge next to a matching dynamo
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const b = grid[y][x];
+    if (!b || b.type !== 'battery') continue;
+    let charging = false;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (inB(nx, ny) && grid[ny][nx] && grid[ny][nx].type === 'dynamo' && grid[ny][nx].color === b.color) charging = true;
+    }
+    if (charging) b.charge = Math.min(MAX_CHARGE, b.charge + 5);
+    else if (b.charge > 0) b.charge--;
+  }
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const b = grid[y][x];
+    if (!b || b.type === 'sticky' || b.type === 'dynamo' || b.type === 'wall' || b.type === 'wire' || b.type === 'goal') continue;
+    const cells = groupCells(gid, gid[y][x]);
+    const colors = groupPowerColors(cells);
+    if (!colors.has(b.color)) continue;
+    const [dx, dy] = DIRS[b.dir];
+    let moved = false;
+    if (b.type === 'mover') moved = tryMove(cells, dx, dy);
+    else if (b.type === 'conveyor') {
+      const tx = x + dx, ty = y + dy;
+      if (inB(tx, ty) && grid[ty][tx] && !isObstacle(grid[ty][tx])) {
+        const bx = tx + dx, by = ty + dy;
+        if (inB(bx, by) && !grid[by][bx]) { grid[by][bx] = grid[ty][tx]; grid[ty][tx] = null; moved = true; }
+      }
+    } else if (b.type === 'pusher') {
+      const chain = [];
+      let nx = x + dx, ny = y + dy;
+      while (inB(nx, ny) && grid[ny][nx] && !isObstacle(grid[ny][nx])) { chain.push([nx, ny]); nx += dx; ny += dy; }
+      if (chain.length) moved = tryMove(chain, dx, dy);
+    }
+    if (moved) { cells.forEach(([cx2, cy2]) => spawnBurst(cx2 + dx, cy2 + dy, BLOCK_COLOR[b.type])); gid = computeGroups(); }
+  }
+}
+
+function spawnBurst(x, y, color) {
+  for (let i = 0; i < 8; i++) particles.push({
+    x: x * CELL + CELL / 2, y: y * CELL + CELL / 2,
+    vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+    life: 60 + Math.random() * 40, color,
+  });
+}
+function updateParticles() { particles = particles.filter(p => p.life-- > 0); particles.forEach(p => { p.x += p.vx; p.y += p.vy; }); }
+
+function draw() {
+  ctx.fillStyle = '#191926'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  for (let x = 0; x <= COLS; x++) { ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,ROWS*CELL); ctx.stroke(); }
+  for (let y = 0; y <= ROWS; y++) { ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(COLS*CELL,y*CELL); ctx.stroke(); }
+
+  computeWireColors();
+  const gid = computeGroups();
+  gridGid = gid; gridColors = new Map();
+  const powered = {}, seen = new Set();
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const id = gid[y][x]; if (id === -1 || seen.has(id)) continue; seen.add(id);
+    const cells = groupCells(gid, id);
+    const colors = groupPowerColors(cells);
+    gridColors.set(id, colors);
+    powered[id] = colors.size > 0;
+  }
+  if (!won && currentLevel >= 0 && checkWin()) {
+    won = true;
+    document.getElementById('winText').textContent = LEVELS[currentLevel].name + ' cleared!';
+    document.getElementById('winModal').style.display = 'flex';
+  }
+
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const b = grid[y][x]; if (!b) continue;
+    const px = x * CELL, py = y * CELL;
+    if (b.type === 'dynamo') ctx.fillStyle = COLORS[b.color];
+    else if (b.type === 'battery') ctx.fillStyle = b.charge > 0 ? COLORS[b.color] : '#4b3f36';
+    else if (b.type === 'sticky') ctx.fillStyle = '#34d399';
+    else if (b.type === 'wall') ctx.fillStyle = '#4b5563';
+    else if (b.type === 'goal') ctx.fillStyle = '#22c55e';
+    else if (b.type === 'wire') { ctx.fillStyle = '#2a2a3a'; ctx.fillRect(px + 3, py + 3, CELL - 6, CELL - 6); }
+    else { const on = powered[gid[y][x]]; ctx.fillStyle = on ? COLORS[b.color] : '#3f3f5c'; }
+    if (b.type !== 'wire') {
+      ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+      ctx.beginPath(); ctx.roundRect(px + 3, py + 3, CELL - 6, CELL - 6, 7); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath(); ctx.roundRect(px + 5, py + 5, CELL - 10, 5, 3); ctx.fill();
+    }
+    if (b.type === 'wire') {
+      const cs = wireColorMap[x + ',' + y];
+      const col = cs && cs.size ? COLORS[[...cs][0]] : '#555';
+      ctx.strokeStyle = col; ctx.lineWidth = 4;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (inB(nx, ny) && grid[ny][nx] && grid[ny][nx].type === 'wire') {
+          ctx.beginPath(); ctx.moveTo(px + CELL/2, py + CELL/2);
+          ctx.lineTo(px + CELL/2 + dx * CELL/2, py + CELL/2 + dy * CELL/2); ctx.stroke();
+        }
+      }
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px + CELL/2, py + CELL/2, 4, 0, 7); ctx.fill();
+    }
+    if (b.type === 'dynamo') {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      const cx = px + CELL/2, cy = py + CELL/2;
+      ctx.beginPath();
+      ctx.moveTo(cx + 3, cy - 10); ctx.lineTo(cx - 6, cy + 2); ctx.lineTo(cx - 1, cy + 2);
+      ctx.lineTo(cx - 3, cy + 10); ctx.lineTo(cx + 6, cy - 2); ctx.lineTo(cx + 1, cy - 2);
+      ctx.closePath(); ctx.fill();
+    }
+    if (b.type === 'battery') {
+      ctx.fillStyle = '#12121c';
+      ctx.fillRect(px + 6, py + CELL - 10, CELL - 12, 5);
+      ctx.fillStyle = b.charge > MAX_CHARGE * 0.25 ? '#4ade80' : '#ef4444';
+      ctx.fillRect(px + 6, py + CELL - 10, (CELL - 12) * Math.max(0, b.charge / MAX_CHARGE), 5);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(Math.round((b.charge / MAX_CHARGE) * 100) + '%', px + CELL/2, py + CELL/2 + 4);
+    }
+    if (b.color && !powered[gid[y][x]] && b.type !== 'wall' && b.type !== 'sticky') {
+      ctx.fillStyle = COLORS[b.color];
+      ctx.fillRect(px + CELL - 12, py + CELL - 12, 8, 8);
+    }
+    if (b.type === 'mover' || b.type === 'pusher' || b.type === 'conveyor') {
+      const cx = px + CELL/2, cy = py + CELL/2, s = b.type === 'pusher' ? 12 : 9;
+      const [dx, dy] = DIRS[b.dir];
+      ctx.fillStyle = '#10101a';
+      ctx.beginPath();
+      ctx.moveTo(cx + dx * s, cy + dy * s);
+      ctx.lineTo(cx - dy * s * 0.7 - dx * s * 0.4, cy + dx * s * 0.7 - dy * s * 0.4);
+      ctx.lineTo(cx + dy * s * 0.7 - dx * s * 0.4, cy - dx * s * 0.7 - dy * s * 0.4);
+      ctx.closePath(); ctx.fill();
+    }
+    if (b.type === 'wall') { ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.moveTo(px+6,py+6); ctx.lineTo(px+CELL-6,py+CELL-6); ctx.moveTo(px+CELL-6,py+6); ctx.lineTo(px+6,py+CELL-6); ctx.stroke(); }
+    if (b.type === 'goal') {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 10, py + 24); ctx.lineTo(px + 10, py + 8); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(px + 10, py + 8); ctx.lineTo(px + 22, py + 12); ctx.lineTo(px + 10, py + 16); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life / 60); ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+
+  if (!ghost && inB(hover[0], hover[1])) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = tool === 'erase' ? '#f87171' : (tool.startsWith('color:') ? COLORS[currentColor] : BLOCK_COLOR[tool] || '#888');
+    ctx.beginPath(); ctx.roundRect(hover[0] * CELL + 3, hover[1] * CELL + 3, CELL - 6, CELL - 6, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  if (ghost) for (const b of ghost.blocks) {
+    const gx = hover[0] + b.dx, gy = hover[1] + b.dy;
+    if (!inB(gx, gy)) continue;
+    ctx.globalAlpha = 0.45; ctx.fillStyle = BLOCK_COLOR[b.block.type] || '#888';
+    ctx.beginPath(); ctx.roundRect(gx * CELL + 3, gy * CELL + 3, CELL - 6, CELL - 6, 7); ctx.fill(); ctx.globalAlpha = 1;
+  }
+}
+
+function drawIcons() {
+  document.querySelectorAll('canvas.icon').forEach(c => {
+    c.width = 22; c.height = 22;
+    const x = c.getContext('2d');
+    const t = c.dataset.t;
+    const base = { mover: '#818cf8', conveyor: '#c084fc', pusher: '#f472b6', sticky: '#34d399', dynamo: '#fbbf24', wall: '#6b7280', wire: '#9ca3af', battery: '#fb923c', erase: '#f87171' }[t];
+    x.fillStyle = base; x.beginPath(); x.roundRect(1, 1, 20, 20, 5); x.fill();
+    x.fillStyle = 'rgba(255,255,255,0.2)'; x.beginPath(); x.roundRect(3, 3, 16, 4, 2); x.fill();
+    x.fillStyle = '#12121c'; x.strokeStyle = '#12121c';
+    if (t === 'mover' || t === 'conveyor' || t === 'pusher') {
+      x.beginPath(); x.moveTo(11, 4); x.lineTo(17, 12); x.lineTo(13, 12); x.lineTo(13, 18);
+      x.lineTo(9, 18); x.lineTo(9, 12); x.lineTo(5, 12); x.closePath(); x.fill();
+      x.fillStyle = 'rgba(255,255,255,0.5)';
+      if (t === 'conveyor') { x.fillRect(5, 19, 12, 1.5); }
+      if (t === 'pusher') { x.fillRect(5, 2, 12, 1.5); }
+    } else if (t === 'dynamo') {
+      x.beginPath(); x.moveTo(13, 4); x.lineTo(7, 12); x.lineTo(11, 12); x.lineTo(9, 19); x.lineTo(15, 10); x.lineTo(11, 10); x.closePath(); x.fill();
+    } else if (t === 'wall') {
+      x.lineWidth = 2; x.beginPath(); x.moveTo(5, 5); x.lineTo(17, 17); x.moveTo(17, 5); x.lineTo(5, 17); x.stroke();
+    } else if (t === 'wire') {
+      x.lineWidth = 3; x.beginPath(); x.moveTo(11, 3); x.lineTo(11, 19); x.moveTo(3, 11); x.lineTo(19, 11); x.stroke();
+    } else if (t === 'battery') {
+      x.fillStyle = '#12121c'; x.fillRect(4, 8, 12, 9);
+      x.fillStyle = '#4ade80'; x.fillRect(5, 9, 8, 7);
+    } else if (t === 'erase') {
+      x.lineWidth = 2.5; x.beginPath(); x.moveTo(6, 6); x.lineTo(16, 16); x.moveTo(16, 6); x.lineTo(6, 16); x.stroke();
+    }
+  });
+}
+drawIcons();
+
+function cellAt(e) {
+  const r = cv.getBoundingClientRect();
+  return [Math.floor((e.clientX - r.left) * (cv.width / r.width) / CELL), Math.floor((e.clientY - r.top) * (cv.height / r.height) / CELL)];
+}
+cv.addEventListener('mousemove', e => { hover = cellAt(e); });
+
+function makeBlock(t) {
+  if (t === 'mover' || t === 'conveyor' || t === 'pusher') return { type: t, dir: 'up', color: currentColor };
+  if (t === 'dynamo') return { type: 'dynamo', color: currentColor };
+  if (t === 'battery') return { type: 'battery', color: currentColor, charge: MAX_CHARGE };
+  return { type: t };
+}
+cv.addEventListener('click', e => {
+  const [x, y] = cellAt(e); if (!inB(x, y)) return;
+  if (ghost) {
+    for (const b of ghost.blocks) {
+      const gx = x + b.dx, gy = y + b.dy; if (!inB(gx, gy)) continue;
+      grid[gy][gx] = Object.assign({}, b.block); spawnBurst(gx, gy, BLOCK_COLOR[b.block.type]);
+    }
+    ghost = null; return;
+  }
+  const b = grid[y][x];
+  if (paintMode) { if (b && b.color) { b.color = currentColor; spawnBurst(x, y, COLORS[currentColor]); } return; }
+  if (b && (b.type === 'mover' || b.type === 'conveyor' || b.type === 'pusher') && tool === b.type) {
+    b.dir = DIR_NAMES[(DIR_NAMES.indexOf(b.dir) + 1) % 4]; blip(440, 0.04, 0.04);
+  } else if (tool === 'erase') { if (grid[y][x] && grid[y][x].type === 'goal') return; grid[y][x] = null; spawnBurst(x, y, '#f87171'); blip(180, 0.08); }
+  else if (!grid[y][x]) { grid[y][x] = makeBlock(tool); spawnBurst(x, y, BLOCK_COLOR[tool]); blip(600, 0.05); }
+});
+cv.addEventListener('contextmenu', e => { e.preventDefault(); const [x, y] = cellAt(e); if (inB(x, y) && !(grid[y][x] && grid[y][x].type === 'goal')) { grid[y][x] = null; } ghost = null; });
+
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.tool.startsWith('color:')) {
+    currentColor = b.dataset.tool.split(':')[1];
+    paintMode = true;
+    document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('active', x === b));
+    document.getElementById('toolName').textContent = 'Paint ' + b.title;
+    return;
+  }
+  tool = b.dataset.tool;
+  paintMode = false;
+  document.querySelectorAll('[data-tool]:not(.swatch)').forEach(x => x.classList.toggle('active', x === b));
+  document.getElementById('toolName').textContent = b.title;
+}));
+
+const playBtn = document.getElementById('play');
+function setPlaying(p) {
+  playing = p; playBtn.textContent = p ? '⏸ Pause' : '▶ Play';
+  clearInterval(timer); if (p) timer = setInterval(tick, +document.getElementById('speed').value);
+}
+playBtn.onclick = () => setPlaying(!playing);
+document.getElementById('step').onclick = tick;
+document.getElementById('reset').onclick = () => { setPlaying(false); particles = []; grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null)); };
+document.getElementById('speed').oninput = () => { if (playing) setPlaying(true); };
+
+function doCopy() {
+  let minX = 99, minY = 99; const cells = [];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++)
+    if (grid[y][x]) { minX = Math.min(minX, x); minY = Math.min(minY, y); cells.push([x, y]); }
+  if (cells.length) clipboard = { blocks: cells.map(([x, y]) => ({ dx: x - minX, dy: y - minY, block: Object.assign({}, grid[y][x]) })) };
+}
+
+document.getElementById('nextLvl').onclick = () => { document.getElementById('winModal').style.display = 'none'; loadLevel(currentLevel >= LEVELS.length - 1 ? -1 : currentLevel + 1); };
+document.getElementById('stayLvl').onclick = () => document.getElementById('winModal').style.display = 'none';
+
+// level cards
+const cardsEl = document.getElementById('levelCards');
+function cardBtn(label, sub, onclick) {
+  const d = document.createElement('div');
+  d.style.cssText = 'background:#232336; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px;';
+  d.innerHTML = `<div style="color:#c7d2fe; font-weight:600; margin-bottom:4px;">${label}</div><div style="color:#889; font-size:12px; margin-bottom:10px;">${sub}</div>`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Play';
+  btn.style.width = '100%';
+  btn.onclick = onclick;
+  d.appendChild(btn);
+  return d;
+}
+
+document.getElementById('help').onclick = () => document.getElementById('helpModal').style.display = 'flex';
+document.getElementById('closeHelp').onclick = () => document.getElementById('helpModal').style.display = 'none';
+document.getElementById('helpModal').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.style.display = 'none'; });
+
+
+const TKEY = { mover:'m', conveyor:'c', pusher:'p', sticky:'s', dynamo:'d', wall:'w', wire:'i', battery:'b', goal:'g' };
+const TKEYREV = Object.fromEntries(Object.entries(TKEY).map(([k,v]) => [v,k]));
+function encodeGrid() {
+  const cells = [];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const b = grid[y][x]; if (!b) continue;
+    cells.push([x, y, TKEY[b.type], b.dir || '', b.color || '', b.charge != null ? b.charge : '']);
+  }
+  return btoa(JSON.stringify(cells)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
+}
+function decodeGrid(s) {
+  try {
+    const cells = JSON.parse(atob(s.replaceAll('-','+').replaceAll('_','/')));
+    grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    for (const [x, y, t, dir, color, charge] of cells) {
+      const type = TKEYREV[t]; if (!type || !inB(x, y)) continue;
+      grid[y][x] = type === 'mover' || type === 'conveyor' || type === 'pusher' ? { type, dir: dir || 'up', color: color || 'yellow' }
+        : type === 'dynamo' ? { type, color: color || 'yellow' }
+        : type === 'battery' ? { type, color: color || 'yellow', charge: charge === '' ? MAX_CHARGE : charge }
+        : { type };
+    }
+    return true;
+  } catch { return false; }
+}
+document.getElementById('copyLink').onclick = () => {
+  location.hash = encodeGrid();
+  navigator.clipboard.writeText(location.href);
+  const el = document.getElementById('toolName'); const t = el.textContent; el.textContent = 'Link copied!';
+  setTimeout(() => el.textContent = t, 1500);
+};
+
+
+// load a shared build from the URL if present
+if (location.hash) decodeGrid(location.hash.slice(1));
+
+// ---- levels ----
+const LEVELS = [
+  { name: 'Level 1 · Recolor', tools: null,
+    desc: 'The Mover is red but the power is yellow. Make their colors match.',
+    hint: 'Pick the Yellow swatch, then click the Mover to paint it yellow. Or change the Dynamo to red.',
+    blocks: [
+      [4, 12, { type: 'dynamo', color: 'yellow' }],
+      [5, 12, { type: 'sticky' }],
+      [6, 12, { type: 'battery', color: 'yellow', charge: 30 }],
+      [7, 12, { type: 'sticky' }],
+      [8, 12, { type: 'mover', dir: 'right', color: 'red' }],
+      [14, 12, { type: 'goal' }],
+    ] },
+  { name: 'Level 2 · Wire It', tools: ['wire', 'erase'],
+    desc: 'The battery only lasts ~3 ticks. Route lasting power to the machine.',
+    hint: 'Run Wire from the machine around to the Dynamo. The machine carries itself on sticky.',
+    blocks: [
+      [6, 6, { type: 'mover', dir: 'down', color: 'yellow' }],
+      [6, 5, { type: 'sticky' }],
+      [5, 5, { type: 'battery', color: 'yellow', charge: 3 }],
+      [8, 14, { type: 'dynamo', color: 'yellow' }],
+      [6, 14, { type: 'goal' }],
+    ] },
+  { name: 'Level 3 · Clear the Path', tools: ['erase'],
+    desc: 'Something is blocking the machine. Only erasing helps.',
+    hint: 'Right-click (or the Erase tool) removes walls.',
+    blocks: [
+      [5, 10, { type: 'mover', dir: 'right', color: 'yellow' }],
+      [4, 10, { type: 'battery', color: 'yellow', charge: 30 }],
+      [6, 10, { type: 'wall' }],
+      [9, 10, { type: 'goal' }],
+    ] },
+  { name: 'Level 4 · Last Charge', tools: ['wire', 'erase'],
+    desc: 'The battery has 5 ticks of charge. Get lasting power to the machine before it dies.',
+    hint: 'Touch the moving group with a Wire that reaches the Dynamo. Only Wire and Erase are unlocked.',
+    blocks: [
+      [4, 10, { type: 'sticky' }],
+      [5, 10, { type: 'battery', color: 'yellow', charge: 5 }],
+      [6, 10, { type: 'sticky' }],
+      [7, 10, { type: 'mover', dir: 'right', color: 'yellow' }],
+      [3, 14, { type: 'dynamo', color: 'yellow' }],
+      [16, 10, { type: 'goal' }],
+    ] },
+  { name: 'Level 5 · Free Build', tools: null,
+    desc: 'The power is blue but the Mover is red — and a Wall is in the way.',
+    hint: 'Place a red Dynamo next to the Mover, and right-click the Wall. Any tool is unlocked.',
+    blocks: [
+      [5, 10, { type: 'mover', dir: 'right', color: 'red' }],
+      [6, 10, { type: 'wall' }],
+      [12, 12, { type: 'dynamo', color: 'blue' }],
+      [14, 10, { type: 'goal' }],
+    ] },
+];
+let gridGid = null, gridColors = new Map();
+
+function loadLevel(i) {
+  currentLevel = i; won = false;
+  setPlaying(false);
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  if (i >= 0) for (const [x, y, b] of LEVELS[i].blocks) grid[y][x] = Object.assign({}, b);
+  document.getElementById('levelName').textContent = i >= 0 ? LEVELS[i].name : 'Sandbox';
+  document.getElementById('levelHint').textContent = i >= 0 ? LEVELS[i].hint : '';
+  const allowed = i >= 0 ? LEVELS[i].tools : null;
+  document.querySelectorAll('[data-tool]:not(.swatch)').forEach(b => {
+    const ok = allowed === null || allowed.includes(b.dataset.tool);
+    b.style.opacity = ok ? '1' : '0.3';
+    b.style.pointerEvents = ok ? 'auto' : 'none';
+  });
+}
+function checkWin() {
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const b = grid[y][x];
+    if (!b || (b.type !== 'mover' && b.type !== 'conveyor' && b.type !== 'pusher')) continue;
+    const gid = gridGid[y][x]; if (gid < 0) continue;
+    const colors = gridColors.get(gid); if (!colors || !colors.has(b.color)) continue;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (inB(nx, ny) && grid[ny][nx] && grid[ny][nx].type === 'goal') return true;
+    }
+  }
+  return false;
+}
+
+// tiny sounds
+LEVELS.forEach((L, i) => cardsEl.appendChild(cardBtn(L.name, L.desc, () => { loadLevel(i); document.getElementById('levelName').scrollIntoView({behavior:'smooth'}); })));
+cardsEl.appendChild(cardBtn('Sandbox', 'Free build — every tool unlocked, no goal.', () => { loadLevel(-1); document.getElementById('levelName').scrollIntoView({behavior:'smooth'}); }));
+let audioCtx = null;
+function blip(freq, dur = 0.06, vol = 0.05) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; o.type = 'square'; g.gain.value = vol;
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch {}
+}
+
+let zoom = 1;
+function setZoom(z) {
+  zoom = Math.min(3, Math.max(0.5, z));
+  cv.style.width = COLS * CELL * zoom + 'px';
+  cv.style.height = ROWS * CELL * zoom + 'px';
+}
+document.getElementById('zoomIn').onclick = () => setZoom(zoom + 0.25);
+document.getElementById('zoomOut').onclick = () => setZoom(zoom - 0.25);
+cv.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); setZoom(zoom + (e.deltaY < 0 ? 0.15 : -0.15)); } }, { passive: false });
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') doCopy();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) ghost = clipboard;
+  if (e.key === 'Escape') ghost = null;
+});
+
+(function loop() { updateParticles(); drawBg(); draw(); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>
